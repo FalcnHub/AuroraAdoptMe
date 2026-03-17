@@ -1,0 +1,172 @@
+if not game:IsLoaded() then game.Loaded:Wait() end
+
+-- Services
+local RS      = game:GetService("ReplicatedStorage")
+local WS      = game:GetService("Workspace")
+local Players = game:GetService("Players")
+local UIS     = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+
+local LP = Players.LocalPlayer
+local PG = LP:WaitForChild("PlayerGui")
+
+-- Modules
+local Fsys       = require(RS:WaitForChild("Fsys")).load
+local ClientData = Fsys("ClientData")
+local InteriorsM = Fsys("InteriorsM")
+
+local RiverNet = require(
+    RS.SharedModules.ContentPacks.Sugarfest2026.ChocolateRiver.ChocolateRiverNet)
+
+local RiverSchedule = require(
+    RS.SharedModules.ContentPacks.Sugarfest2026.ChocolateRiver.ChocolateRiverSchedule)
+
+-- Config
+local RIVER_INTERIOR   = "MainMap!Sugarfest2026"
+local RIVER_ENTRY      = Vector3.new(-286.88,24,-1598.95)
+local REDEEM_POS       = Vector3.new(-304.43,35,-1598.94)
+
+local EGG_DELAY        = 0.5
+local SWIM_WAIT        = 1.5
+local QUEUE_FLUSH_WAIT = 2.5
+local LOOP_INTERVAL    = 70
+local TP_WAIT          = 5
+
+local enabled   = true
+local running   = false
+local totalEggs = 0
+
+-- GUI ROOT
+local sg = Instance.new("ScreenGui")
+sg.Name = "FalconHub"
+sg.ResetOnSpawn = false
+sg.IgnoreGuiInset = true
+sg.Parent = PG
+
+--------------------------------------------------
+-- 🍬 CANDY LOADING SCREEN
+--------------------------------------------------
+local loadingFrame = Instance.new("Frame")
+loadingFrame.Size = UDim2.fromOffset(240,130)
+loadingFrame.Position = UDim2.new(0.5,-120,0.5,-65)
+loadingFrame.BackgroundColor3 = Color3.fromRGB(60,30,20)
+loadingFrame.BackgroundTransparency = 1
+loadingFrame.BorderSizePixel = 0
+loadingFrame.Parent = sg
+Instance.new("UICorner", loadingFrame).CornerRadius = UDim.new(0,12)
+
+local stroke = Instance.new("UIStroke", loadingFrame)
+stroke.Color = Color3.fromRGB(255,170,200)
+stroke.Thickness = 2
+stroke.Transparency = 1
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1,0,0.5,0)
+title.BackgroundTransparency = 1
+title.Text = "🍬 FalconHub"
+title.Font = Enum.Font.GothamBold
+title.TextSize = 18
+title.TextColor3 = Color3.fromRGB(255,220,180)
+title.TextTransparency = 1
+title.Parent = loadingFrame
+
+local sub = Instance.new("TextLabel")
+sub.Size = UDim2.new(1,0,0.25,0)
+sub.Position = UDim2.new(0,0,0.45,0)
+sub.BackgroundTransparency = 1
+sub.Text = "Preparing sweets..."
+sub.Font = Enum.Font.Gotham
+sub.TextSize = 12
+sub.TextColor3 = Color3.fromRGB(255,180,220)
+sub.TextTransparency = 1
+sub.Parent = loadingFrame
+
+local barBG = Instance.new("Frame")
+barBG.Size = UDim2.new(1,-20,0,10)
+barBG.Position = UDim2.new(0,10,0.75,0)
+barBG.BackgroundColor3 = Color3.fromRGB(90,50,35)
+barBG.BackgroundTransparency = 1
+barBG.BorderSizePixel = 0
+barBG.Parent = loadingFrame
+Instance.new("UICorner", barBG).CornerRadius = UDim.new(1,0)
+
+local bar = Instance.new("Frame")
+bar.Size = UDim2.new(0,0,1,0)
+bar.BackgroundColor3 = Color3.fromRGB(255,120,180)
+bar.BorderSizePixel = 0
+bar.Parent = barBG
+Instance.new("UICorner", bar).CornerRadius = UDim.new(1,0)
+
+--------------------------------------------------
+-- 🟦 MAIN PANEL (hidden first)
+--------------------------------------------------
+local panel = Instance.new("Frame")
+panel.Size = UDim2.fromOffset(275,210)
+panel.Position = UDim2.fromOffset(20,80)
+panel.BackgroundColor3 = Color3.fromRGB(10,14,24)
+panel.BorderSizePixel = 0
+panel.Visible = false
+panel.Parent = sg
+Instance.new("UICorner",panel).CornerRadius = UDim.new(0,10)
+
+local stroke2 = Instance.new("UIStroke",panel)
+stroke2.Color = Color3.fromRGB(80,200,255)
+stroke2.Thickness = 1.5
+
+local titleBar = Instance.new("Frame")
+titleBar.Size = UDim2.new(1,0,0,34)
+titleBar.BackgroundColor3 = Color3.fromRGB(15,90,150)
+titleBar.Parent = panel
+Instance.new("UICorner",titleBar).CornerRadius = UDim.new(0,10)
+
+local titleLbl = Instance.new("TextLabel")
+titleLbl.Size = UDim2.new(1,-8,1,0)
+titleLbl.Position = UDim2.fromOffset(8,0)
+titleLbl.BackgroundTransparency = 1
+titleLbl.Text = "🍫 Cocoa River Farmer"
+titleLbl.Font = Enum.Font.GothamBold
+titleLbl.TextSize = 13
+titleLbl.TextColor3 = Color3.new(1,1,1)
+titleLbl.TextXAlignment = Enum.TextXAlignment.Left
+titleLbl.Parent = titleBar
+
+--------------------------------------------------
+-- 🎬 LOADING ANIMATION
+--------------------------------------------------
+task.spawn(function()
+    -- fade in
+    TweenService:Create(loadingFrame,TweenInfo.new(.5),{BackgroundTransparency=0}):Play()
+    TweenService:Create(stroke,TweenInfo.new(.5),{Transparency=0}):Play()
+    TweenService:Create(title,TweenInfo.new(.5),{TextTransparency=0}):Play()
+    TweenService:Create(sub,TweenInfo.new(.5),{TextTransparency=0}):Play()
+    TweenService:Create(barBG,TweenInfo.new(.5),{BackgroundTransparency=0}):Play()
+
+    task.wait(.6)
+
+    -- progress
+    local duration = 3
+    local start = tick()
+
+    while tick() - start < duration do
+        local p = (tick()-start)/duration
+        bar.Size = UDim2.new(p,0,1,0)
+        sub.Text = "Loading sweets... "..math.floor(p*100).."%"
+        task.wait()
+    end
+
+    sub.Text = "Done!"
+    task.wait(.4)
+
+    -- fade out
+    local t = TweenInfo.new(.5)
+    TweenService:Create(loadingFrame,t,{BackgroundTransparency=1}):Play()
+    TweenService:Create(stroke,t,{Transparency=1}):Play()
+    TweenService:Create(title,t,{TextTransparency=1}):Play()
+    TweenService:Create(sub,t,{TextTransparency=1}):Play()
+    TweenService:Create(barBG,t,{BackgroundTransparency=1}):Play()
+
+    task.wait(.5)
+
+    loadingFrame:Destroy()
+    panel.Visible = true
+end)
